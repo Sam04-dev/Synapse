@@ -1,11 +1,5 @@
 <div align="center">
 
-```
-  ▲
- ███
-SYNAPSE
-```
-
 # SYNAPSE
 
 **Stateful Memory Infrastructure for Autonomous AI Agents**
@@ -651,6 +645,6 @@ Built for the **H0 Hackathon — Open Innovation Track**
 
 *Real databases. Real ACID transactions. Real infrastructure.*
 
-**[Launch App](https://synapse.vercel.app) · [API Docs](/docs) · [Pricing](/pricing)**
+**[Launch App](https://synapse.vercel.app)**
 
 </div>
