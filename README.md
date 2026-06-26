@@ -50,13 +50,13 @@ Synapse solves this with a purpose-built dual-database architecture that separat
 ### Dual-Database Design
 
 **Aurora DSQL — Relational State**
-Distributed SQL with `SERIALIZABLE` isolation. Handles concurrent agent writes to shared state with zero conflicts. Schema-enforced relational integrity across `agents`, `memories`, and `relationships` tables. Connection pooling via `pg` with persistent SSL/TLS and eager warm-up to eliminate cold-start latency on first request. Every write is atomic. Every read is consistent.
+Distributed SQL with `SERIALIZABLE` isolation. Handles concurrent agent writes to shared state with zero conflicts. Schema-enforced relational integrity across agents, memories, and relationships. Every write is atomic. Every read is consistent.
 
 **DynamoDB — Immutable Event Log**
-Single-table design for infinite-scale event ingestion. Every agent action becomes an immutable record — written once, never updated. Partition key `PK = AGENT#<id>` with sort key `SK = EVENT#<timestamp>` enables per-agent chronological replay at any point in time. Full auditability, perfect replayability, zero schema migrations.
+Single-table design for infinite-scale event ingestion. Every agent action becomes an immutable record — written once, never updated. Enables per-agent chronological replay at any point in time. Full auditability, perfect replayability, zero schema migrations.
 
 **Vercel — Global Edge Delivery**
-Next.js 14 App Router deployed on Vercel's global edge network. API routes execute within 50ms of the requester. Server Components eliminate client-side data-fetching waterfalls. The dashboard streams live metrics from both databases in parallel via `Promise.all`, delivering a complete system view in a single round trip.
+Next.js 14 App Router deployed on Vercel's global edge network. API routes execute within 50ms of the requester. The dashboard streams live metrics from both databases in a single round trip.
 
 ### System Architecture
 
@@ -68,29 +68,28 @@ graph TB
     end
 
     subgraph Vercel["Vercel Edge — Global"]
-        AUTH[Auth Layer<br/>HMAC-SHA256 Sessions<br/>httpOnly Cookies]
+        AUTH[Auth Layer<br/>Session Cookies]
         API_A[POST /api/agents<br/>Create namespace + API key]
         API_M[POST /api/memory<br/>Write memory node + edge]
         API_E[POST /api/events<br/>Log agent action]
         API_MET[GET /api/metrics<br/>Live system telemetry]
         API_STRESS[POST /api/stress-test<br/>ACID concurrency proof]
-        API_SIM[POST /api/simulate<br/>Continuous load generation]
     end
 
-    subgraph AWS["AWS — ap-southeast-2"]
-        DSQL[(Aurora DSQL<br/>PostgreSQL Protocol<br/>SERIALIZABLE Isolation<br/>───────────────<br/>agents<br/>memories<br/>relationships<br/>events<br/>users)]
-        DDB[(DynamoDB<br/>SynapseEventLog<br/>Single-Table Design<br/>───────────────<br/>PK = AGENT#id<br/>SK = EVENT#timestamp)]
+    subgraph AWS["AWS Cloud"]
+        DSQL[(Aurora DSQL<br/>SERIALIZABLE Isolation<br/>agents · memories<br/>relationships · users)]
+        DDB[(DynamoDB<br/>SynapseEventLog<br/>Immutable Event Log)]
     end
 
-    DASH -->|polling 2s| API_MET
+    DASH -->|polling| API_MET
     DASH -->|fetch| API_A
     AGENT -->|Bearer token| API_M
     AGENT -->|Bearer token| API_E
     AUTH --> API_A & API_M & API_E & API_MET
-    API_A & API_M & API_STRESS -->|pg Pool · SSL/TLS| DSQL
-    API_E & API_SIM -->|AWS SDK v3 PutCommand| DDB
-    API_MET -->|Promise.all| DSQL
-    API_MET -->|ScanCommand + COUNT| DDB
+    API_A & API_M & API_STRESS --> DSQL
+    API_E --> DDB
+    API_MET --> DSQL
+    API_MET --> DDB
 ```
 
 ### The ACID Compliance Proof
@@ -113,7 +112,7 @@ This is not a benchmark claim. It is a live, observable demonstration with real 
 | **AI Startup CTO** | Agents corrupting shared state under concurrent load; no transactional guarantees from vector DB | Aurora DSQL with `SERIALIZABLE` isolation eliminates race conditions at the database layer |
 | **Enterprise Architect** | Regulatory requirement to audit all AI agent decisions and actions | Immutable DynamoDB event log — every action timestamped, persisted forever, replayable |
 | **Full-Stack Developer** | Spending weeks building custom Redis/Postgres memory layers for every new agent project | Managed API — provision a namespace, get an API key, start writing in minutes |
-| **Compliance Officer** | Black-box AI decisions failing audit requirements | Per-agent event streams with `PK=AGENT#id SK=EVENT#timestamp` — full forensic replay |
+| **Compliance Officer** | Black-box AI decisions failing audit requirements | Per-agent event streams with full forensic replay capability |
 
 ---
 
@@ -131,7 +130,7 @@ From the dashboard you can:
 1. **View the Live Memory Graph** — nodes and edges rendered in React Flow, data from Aurora DSQL
 2. **Stream the Event Feed** — real-time DynamoDB event log with relative timestamps and action type filters
 3. **Run the ACID Stress Test** — 50 concurrent writes, observable pass/fail in the Metrics panel
-4. **Run the Simulation** — continuous event generation to demonstrate live throughput metrics
+4. **Run the Simulation** — continuous event generation to show live throughput metrics
 5. **Create your own Agent Namespace** — provision a new namespace and receive an API key
 
 ---
@@ -143,17 +142,16 @@ From the dashboard you can:
 | Layer | Technology | Version | Role |
 |---|---|---|---|
 | Framework | Next.js App Router | 14.2.35 | Server Components, API routes, streaming |
-| Language | TypeScript | 5.4+ | End-to-end type safety, zero `any` types |
+| Language | TypeScript | 5.4+ | End-to-end type safety |
 | Runtime | Node.js | 20.x | Vercel serverless runtime |
 | Styling | Tailwind CSS | 3.4+ | Utility-first, dark-mode native |
 
 ### Databases
 
-| Database | SDK | Version | Purpose |
-|---|---|---|---|
-| Aurora DSQL | `pg` (PostgreSQL protocol) | 8.22.0 | ACID-compliant relational state |
-| DynamoDB | `@aws-sdk/client-dynamodb` | 3.1073.0 | Immutable event log |
-| DynamoDB Document | `@aws-sdk/lib-dynamodb` | 3.1073.0 | Typed document operations |
+| Database | Version | Purpose |
+|---|---|---|
+| Aurora DSQL | AWS SDK v3.1073 | ACID-compliant relational state |
+| DynamoDB | AWS SDK v3.1073 | Immutable event log |
 
 ### Visualization & UI
 
@@ -161,15 +159,7 @@ From the dashboard you can:
 |---|---|---|
 | React Flow | 11.11.4 | Interactive memory graph |
 | Lucide React | 1.21.0 | Icon system |
-| shadcn/ui | — | Component primitives (customized, not default) |
-
-### Security & Auth
-
-| Library | Role |
-|---|---|
-| Node.js `crypto` built-in | HMAC-SHA256 session signing — no third-party JWT library |
-| `bcryptjs` 3.0.3 | Password hashing at cost factor 10, pure JS |
-| `httpOnly` + `Secure` cookies | Session persistence, XSS-resistant |
+| shadcn/ui | — | Component primitives |
 
 ---
 
@@ -184,8 +174,8 @@ From the dashboard you can:
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/your-org/synapse.git
-cd synapse
+git clone https://github.com/Sam04-dev/Synapse.git
+cd Synapse
 npm install
 ```
 
@@ -194,7 +184,7 @@ npm install
 Create `.env.local` at the project root:
 
 ```env
-# Aurora DSQL (PostgreSQL protocol)
+# Aurora DSQL
 POSTGRES_HOST=your-cluster.dsql.us-east-1.on.aws
 POSTGRES_PORT=5432
 POSTGRES_DB=postgres
@@ -211,17 +201,13 @@ DYNAMODB_TABLE_NAME=SynapseEventLog
 JWT_SECRET=your-32-char-minimum-secret-here
 ```
 
-> **SSL Certificate**: Download the [Aurora DSQL global CA bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem) and place it as `global-bundle.pem` in the project root. The `pg` client reads this automatically.
+> **SSL Certificate**: Download the [Aurora DSQL global CA bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem) and place it as `global-bundle.pem` in the project root.
 
 ### 3. Initialize Schema
-
-On first run, the schema is applied automatically via `runMigrations()` (called lazily on first write). To trigger it manually:
 
 ```bash
 curl -X POST http://localhost:3000/api/setup
 ```
-
-This idempotently creates all tables and indexes using `CREATE TABLE IF NOT EXISTS` — safe to run multiple times.
 
 ### 4. Run Locally
 
@@ -236,55 +222,35 @@ npm run dev
 curl -X POST http://localhost:3000/api/seed
 ```
 
-Creates a sample agent with 10 memory nodes and inter-node relationships for graph visualization.
-
 ---
 
 ## API Reference
 
-All endpoints accept and return `application/json`. Error responses follow the shape `{ "error": "string", "code": number }`.
+All endpoints accept and return `application/json`. Error responses: `{ "error": "string", "code": number }`.
 
 ### Authentication
 
 ```http
 POST /api/auth/signup
-Content-Type: application/json
-
 { "email": "you@example.com", "password": "min8chars" }
 ```
 
 ```http
 POST /api/auth/login
-Content-Type: application/json
-
 { "email": "you@example.com", "password": "your-password" }
 ```
 
-Session is returned as an `httpOnly` cookie (`synapse_session`). All subsequent requests include it automatically.
+Session is returned as an `httpOnly` cookie. All subsequent requests include it automatically.
 
 ---
 
 ### Agents
 
 ```http
-GET /api/agents
-→ { "agents": [{ "id", "name", "createdAt", "apiKeyHash" }] }
+GET  /api/agents           → { "agents": [{ "id", "name", "createdAt", "apiKeyHash" }] }
+POST /api/agents           → { "id", "name", "createdAt", "apiKey" }  ← shown once only
+DELETE /api/agents/:id     → { "success": true }
 ```
-
-```http
-POST /api/agents
-Content-Type: application/json
-
-{ "name": "customer-support-agent" }
-→ { "id", "name", "createdAt", "apiKey" }  ← raw key shown once only
-```
-
-```http
-DELETE /api/agents/:id
-→ { "success": true }
-```
-
-> The raw API key is returned once at creation time. Only the SHA-256 hash is stored. There is no key recovery endpoint.
 
 ---
 
@@ -292,21 +258,18 @@ DELETE /api/agents/:id
 
 ```http
 POST /api/memory
-Content-Type: application/json
-
 {
   "agentId": "uuid",
   "memoryContent": "User prefers dark mode and metric units",
-  "relationshipType": "PREFERS",   // optional
-  "parentMemoryId": "uuid"         // optional — creates a directed edge
+  "relationshipType": "PREFERS",
+  "parentMemoryId": "uuid"
 }
-→ { "id", "agentId", "content", "createdAt" }
 ```
 
 ```http
 GET /api/memory?agentId=uuid
 → {
-    "nodes": [{ "id", "content", "timestamp", "type": "memory" }],
+    "nodes": [{ "id", "content", "timestamp", "type" }],
     "edges": [{ "id", "source", "target", "label" }]
   }
 ```
@@ -317,23 +280,12 @@ GET /api/memory?agentId=uuid
 
 ```http
 POST /api/events
-Content-Type: application/json
-
 {
   "agentId": "uuid",
   "action": "MEMORY_CREATED",
   "payload": { "key": "value" }
 }
 → { "success": true }
-```
-
-Written to DynamoDB as:
-```
-PK = "AGENT#<agentId>"
-SK = "EVENT#<ISO8601 timestamp>"
-action = "MEMORY_CREATED"
-payload = { ... }
-timestamp = "<ISO8601>"
 ```
 
 ---
@@ -348,14 +300,10 @@ GET /api/metrics
     "events": number,
     "eventsPerSec": number,
     "avgLatencyMs": number,
-    "growth": [{ "day": "MM/DD", "count": number }],
-    "throughputBars": number[],  // last 10 seconds, one bucket per second
     "dsqlStatus": "connected",
     "dynamoStatus": "connected"
   }
 ```
-
-Executes 7 queries in parallel via `Promise.all` — three aggregate counts from Aurora DSQL, growth trend, latency calculation, throughput histogram, and a DynamoDB event count scan. Returns in a single response with no client-side fan-out.
 
 ---
 
@@ -372,189 +320,14 @@ POST /api/stress-test
   }
 ```
 
-Fires 50 concurrent `INSERT` operations to Aurora DSQL and measures ACID integrity. All writes either commit or roll back — no partial state, no corruption, no silent failures.
-
----
-
-## Database Schema
-
-### Aurora DSQL (PostgreSQL)
-
-```sql
--- Agent namespaces
-CREATE TABLE agents (
-  id           VARCHAR(36)  PRIMARY KEY,
-  name         VARCHAR(255) NOT NULL,
-  tenant_id    UUID,
-  framework    VARCHAR(100),
-  status       VARCHAR(50),
-  api_key_hash VARCHAR(255),
-  created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
--- Memory nodes (long-term agent state)
-CREATE TABLE memories (
-  id         VARCHAR(36) PRIMARY KEY,
-  agent_id   VARCHAR(36) NOT NULL REFERENCES agents(id),
-  content    TEXT        NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Directed edges between memories
-CREATE TABLE relationships (
-  id               VARCHAR(36)  PRIMARY KEY,
-  source_memory_id VARCHAR(36)  NOT NULL REFERENCES memories(id),
-  target_memory_id VARCHAR(36)  NOT NULL REFERENCES memories(id),
-  type             VARCHAR(100) NOT NULL,
-  created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
--- DSQL-native event table (secondary to DynamoDB)
-CREATE TABLE events (
-  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  agent_id   UUID        NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-  action     VARCHAR(100) NOT NULL,
-  payload    JSONB        DEFAULT '{}',
-  created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
--- User accounts
-CREATE TABLE users (
-  id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_memories_agent_id   ON memories(agent_id);
-CREATE INDEX idx_events_agent_id     ON events(agent_id, created_at DESC);
-CREATE INDEX idx_users_email         ON users(email);
-```
-
-### DynamoDB — Single-Table Design
-
-```
-Table: SynapseEventLog
-Billing: On-Demand (pay-per-request)
-
-Primary Key:
-  PK (String) — Partition key — e.g., "AGENT#550e8400-e29b-41d4"
-  SK (String) — Sort key       — e.g., "EVENT#2026-06-26T14:23:01.000Z"
-
-Attributes:
-  action    (String) — MEMORY_CREATED | AUDIT_LOG | STATE_CHANGE | ERROR_OCCURRED | PROCESS_TICKET
-  payload   (Map)    — Arbitrary JSON context
-  timestamp (String) — ISO 8601 — used for range scans on recent events
-
-Access Patterns:
-  1. Write event         → PutItem by AGENT#id + EVENT#timestamp
-  2. Get agent history   → Query PK = "AGENT#id", ScanIndexForward=false, Limit=50
-  3. Count recent events → Scan with FilterExpression "timestamp > :cutoff", SELECT=COUNT
-```
-
 ---
 
 ## Security
 
-Synapse follows defense-in-depth principles with no client-side secrets.
-
-### Session Security
-- Sessions signed with HMAC-SHA256 using a 32+ character secret from environment variables
-- `base64url(payload).signature` format — no third-party JWT libraries
-- `timingSafeEqual` comparison prevents timing-attack extraction of the secret
-- 7-day TTL enforced at verification time, not at cookie expiry alone
-- `httpOnly: true`, `Secure: true` (production), `SameSite: lax`
-
-### API Key Security
-- Raw API keys are SHA-256 hashed before storage — the database never holds a recoverable key
-- Keys are shown exactly once at creation time via the UI
-- Key prefix `syn_` with 64 hex characters (256 bits of entropy)
-
-### Database Security
-- All Aurora DSQL connections use TLS with the AWS global CA bundle — `rejectUnauthorized: true`
-- AWS credentials exist only in environment variables and Vercel project settings — never in source
-- No ORM query builders — all SQL is parameterized via `pg`'s prepared statement protocol, eliminating SQL injection
-
-### Zero Client-Side AWS Calls
-Per `AI_RULES.md`: no AWS SDK instantiation in browser code. All database calls run exclusively in Next.js API routes (server-side). The browser never sees credentials, connection strings, or raw database responses — only shaped API JSON.
-
----
-
-## Project Structure
-
-```
-synapse/
-├── app/
-│   ├── (auth)/
-│   │   ├── layout.tsx              # Centered auth layout
-│   │   └── signup/page.tsx         # Account creation
-│   ├── (dashboard)/
-│   │   ├── layout.tsx              # Sidebar + auth gate + simulation state context
-│   │   ├── page.tsx                # Agent dashboard + memory graph
-│   │   ├── events/page.tsx         # Live event stream
-│   │   ├── metrics/page.tsx        # System metrics + ACID stress test
-│   │   ├── docs/page.tsx           # API documentation
-│   │   └── architecture/page.tsx   # System architecture view
-│   ├── (marketing)/
-│   │   ├── layout.tsx              # Top nav marketing layout
-│   │   └── pricing/page.tsx        # Three-tier pricing
-│   └── api/
-│       ├── agents/route.ts          # GET list, POST create
-│       ├── agents/[id]/route.ts     # DELETE by id
-│       ├── memory/route.ts          # GET graph, POST node+edge
-│       ├── events/route.ts          # POST log to DynamoDB
-│       ├── metrics/route.ts         # GET live telemetry (parallel queries)
-│       ├── stress-test/route.ts     # POST concurrent write benchmark
-│       ├── simulate/route.ts        # POST continuous load simulation
-│       ├── seed/route.ts            # POST sample data generation
-│       ├── setup/route.ts           # POST schema migration trigger
-│       └── auth/
-│           ├── signup/route.ts      # POST create user (bcrypt + DSQL)
-│           ├── login/route.ts       # POST verify + set session cookie
-│           ├── logout/route.ts      # POST clear session cookie
-│           └── session/route.ts     # GET verify current session
-├── components/
-│   ├── graph/
-│   │   ├── GraphCanvas.tsx          # React Flow canvas + Controls + MiniMap
-│   │   ├── GraphToolbar.tsx         # Search, filter chips (orange active state)
-│   │   ├── CustomNode.tsx           # Memory node renderer
-│   │   └── CustomEdge.tsx           # Animated dashed edge renderer
-│   ├── pricing/
-│   │   ├── ComparisonTable.tsx      # 16-row feature matrix
-│   │   └── WaitlistModal.tsx        # Subscribe / Contact Sales modal
-│   ├── ui/                          # shadcn primitives (customized)
-│   ├── ApiKeyManager.tsx            # Agent table with create + delete
-│   ├── CreateAgentModal.tsx         # Name + description → API key reveal
-│   ├── EventFeed.tsx                # Live event stream with pause/filter
-│   ├── LoginScreen.tsx              # Auth form with real API + sample credential fallback
-│   ├── MemoryGraph.tsx              # Full graph page wrapper
-│   ├── Sidebar.tsx                  # Navigation
-│   └── WelcomeOverlay.tsx           # Post-login animation
-├── lib/
-│   ├── aws/
-│   │   ├── dsql.ts                  # pg Pool · SSL · executeSql()
-│   │   ├── dynamodb.ts              # logEvent() · queryEvents() · countRecentEvents()
-│   │   └── dsql-schema.ts           # runMigrations() — idempotent DDL
-│   ├── auth.ts                      # signSession() · verifySession() · HMAC-SHA256
-│   ├── demo-state.tsx               # Simulation state context — cross-navigation persistence
-│   ├── event-utils.ts               # timeAgo() · actionColor()
-│   ├── mock-auth.ts                 # useMockAuth() — real session + sample credential fallback
-│   └── types.ts                     # Agent · MemoryNode · MemoryEdge · AgentEvent · User
-├── docs/
-│   ├── PRD.md
-│   ├── ARCHITECTURE.md
-│   ├── TECH_STACK.md
-│   ├── DATA_CONTRACTS.md
-│   ├── TESTING.md
-│   └── PLAN.md
-├── .ai/
-│   ├── AI_RULES.md
-│   ├── CODING_STANDARDS.md
-│   └── SECURITY.md
-├── global-bundle.pem                # AWS Aurora DSQL CA certificate
-├── .env.local                       # Environment variables (not committed)
-└── next.config.mjs
-```
+- **Sessions** — Signed with HMAC-SHA256, `httpOnly` cookies, 7-day TTL, timing-safe verification
+- **API Keys** — SHA-256 hashed before storage; raw key shown once at creation, never stored
+- **Database** — All connections use TLS; credentials live only in environment variables
+- **No client-side secrets** — All AWS and database calls run server-side only; the browser never sees credentials
 
 ---
 
@@ -576,40 +349,26 @@ Aurora DSQL is the only solution that delivers full SQL semantics, `SERIALIZABLE
 ## Roadmap
 
 ### v0.2 — Agent SDK
-- Python and JavaScript client libraries (`npm install @synapse-ai/sdk`)
+- Python and JavaScript client libraries
 - Automatic memory compression when context window approaches limit
-- Streaming event webhooks via `/api/webhooks/agent-event`
+- Streaming event webhooks
 
 ### v0.3 — Team Collaboration
 - Shared namespaces across team members
 - Role-based access control (read-only vs. read-write API keys)
-- Per-namespace usage quotas enforced at the API layer
+- Per-namespace usage quotas
 
 ### v0.4 — Enterprise
 - SSO via SAML 2.0 / OIDC
 - Audit log export (S3, Splunk, Datadog)
-- On-premise deployment via Docker Compose
-- Custom SLA with 99.99% uptime guarantee backed by Aurora DSQL's multi-AZ topology
+- On-premise deployment
+- Custom SLA with 99.99% uptime guarantee
 
 ### v1.0 — Production GA
 - Stripe billing integration (Starter / Pro / Enterprise tiers live)
 - Multi-region deployment (us-east-1 + eu-west-1 + ap-southeast-2)
-- Real-time WebSocket event streaming replacing current polling
-- Memory summarization via LLM compression before context window eviction
-
----
-
-## Development Standards
-
-This codebase enforces strict quality rules defined in `.ai/`:
-
-- **No `any` types** — TypeScript strict mode, all AWS SDK responses explicitly typed
-- **No file over 200 lines** — components are split at the architectural boundary
-- **No client-side AWS calls** — SDK instantiation only in `/api` routes and `lib/aws/`
-- **No mock data in production** — all data flows from real Aurora DSQL and DynamoDB
-- **No ORMs** — raw `pg` parameterized queries and AWS SDK v3 commands only
-- **Try/catch on every AWS call** — standardized `{ error: string, code: number }` error shape
-- **Zero dead code** — no commented-out blocks, no TODO stubs
+- Real-time WebSocket event streaming
+- Memory summarization via LLM compression
 
 ---
 
@@ -617,15 +376,13 @@ This codebase enforces strict quality rules defined in `.ai/`:
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Follow the standards in `.ai/CODING_STANDARDS.md` strictly
-4. Ensure `npx tsc --noEmit` reports zero errors
-5. Open a pull request with a description of the change and its motivation
+3. Open a pull request with a description of the change and its motivation
 
 ---
 
 ## Privacy & Security Policy
 
-Synapse stores developer API keys as SHA-256 hashes only. Raw keys cannot be recovered. Agent memory content is stored in Aurora DSQL and is isolated per agent namespace — no cross-namespace data access is possible. Event logs in DynamoDB are append-only. No user behavioral data is sold or shared with third parties. All data is encrypted in transit (TLS 1.2+) and at rest (AES-256, AWS managed keys).
+Synapse stores developer API keys as SHA-256 hashes only. Raw keys cannot be recovered. Agent memory content is stored in Aurora DSQL and is isolated per agent namespace. Event logs in DynamoDB are append-only. No user behavioral data is sold or shared with third parties. All data is encrypted in transit (TLS 1.2+) and at rest (AES-256, AWS managed keys).
 
 For security disclosures, contact: **founders@synapse.engine**
 
@@ -645,6 +402,6 @@ Built for the **H0 Hackathon — Open Innovation Track**
 
 *Real databases. Real ACID transactions. Real infrastructure.*
 
-**[Launch App](https://synapse.vercel.app)**
+**[Launch App](https://synapse.vercel.app) · [API Docs](/docs) · [Pricing](/pricing)**
 
 </div>
