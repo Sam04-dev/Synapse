@@ -51,7 +51,11 @@ export async function GET() {
       }
     }
 
-    const rawEventsPerSec = dynamoCount > 0 ? +(dynamoCount / 10).toFixed(1) : 0;
+    const dsqlRecentCount = !("error" in throughput)
+      ? throughput.records.reduce((sum, r) => sum + Number(r.cnt), 0)
+      : 0;
+    const bestRecentCount = Math.max(dsqlRecentCount, dynamoCount);
+    const rawEventsPerSec = bestRecentCount > 0 ? +(bestRecentCount / 10).toFixed(1) : 0;
 
     return Response.json({
       memories,
@@ -62,7 +66,7 @@ export async function GET() {
       growth,
       throughputBars,
       dsqlStatus: "connected",
-      dynamoStatus: "connected",
+      dynamoStatus: !("error" in dynamoRecent) ? "connected" : "error",
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to fetch metrics";
