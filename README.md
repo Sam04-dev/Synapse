@@ -15,7 +15,7 @@ SYNAPSE
 [![Aurora DSQL](https://img.shields.io/badge/Aurora-DSQL-FF9900?style=flat-square&logo=amazon-aws)](https://aws.amazon.com/rds/aurora/dsql/)
 [![DynamoDB](https://img.shields.io/badge/Backed_by-DynamoDB-FF9900?style=flat-square&logo=amazon-dynamodb)](https://aws.amazon.com/dynamodb/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4+-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
-[![License MIT](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
+[![License Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-22c55e?style=flat-square)](LICENSE)
 
 ---
 
@@ -639,7 +639,9 @@ For security disclosures, contact: **founders@synapse.engine**
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
+
+Copyright 2026 Sam04-dev. Licensed under the Apache License, Version 2.0.
 
 ---
 
