@@ -29,17 +29,36 @@ function StatusBadge({ status }: { status: string }) {
 
 function ThroughputBars({ bars }: { bars: number[] }) {
   const max = Math.max(...bars, 1);
+  const hasActivity = bars.some((v) => v > 0);
+
   return (
     <div className="border-2 border-foreground/10 bg-card p-4">
-      <p className="text-[11px] font-mono tracking-[0.15em] uppercase text-muted-foreground/60 mb-3">DYNAMO WRITE THROUGHPUT (10s)</p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[11px] font-mono tracking-[0.15em] uppercase text-muted-foreground/60">
+          DYNAMO WRITE THROUGHPUT (10s)
+        </p>
+        {!hasActivity && (
+          <span className="text-[10px] font-mono text-muted-foreground/30 uppercase tracking-widest">
+            IDLE — START SIMULATION
+          </span>
+        )}
+      </div>
       <div className="flex items-end gap-1 h-[50px]">
         {bars.map((v, i) => (
-          <div key={i} className="flex-1 rounded-sm" style={{ height: v > 0 ? Math.max((v / max) * 50, 3) : 3, background: v > 0 ? "hsl(20 90% 50%)" : "hsl(0 0% 25%)" }} />
+          <div
+            key={i}
+            className="flex-1 rounded-sm transition-all duration-300"
+            style={{
+              height: v > 0 ? `${Math.max((v / max) * 50, 4)}px` : "8px",
+              background: v > 0 ? "hsl(20 90% 50%)" : "rgba(255,255,255,0.07)",
+              border: v === 0 ? "1px solid rgba(255,255,255,0.06)" : "none",
+            }}
+          />
         ))}
       </div>
-      <div className="flex justify-between mt-1">
-        <span className="text-[9px] font-mono text-muted-foreground/40">-10s</span>
-        <span className="text-[9px] font-mono text-muted-foreground/40">now</span>
+      <div className="flex justify-between mt-1.5">
+        <span className="text-[9px] font-mono text-muted-foreground/30">−10s</span>
+        <span className="text-[9px] font-mono text-muted-foreground/30">now</span>
       </div>
     </div>
   );
