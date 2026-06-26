@@ -228,22 +228,6 @@ curl -X POST http://localhost:3000/api/seed
 
 All endpoints accept and return `application/json`. Error responses: `{ "error": "string", "code": number }`.
 
-### Authentication
-
-```http
-POST /api/auth/signup
-{ "email": "you@example.com", "password": "min8chars" }
-```
-
-```http
-POST /api/auth/login
-{ "email": "you@example.com", "password": "your-password" }
-```
-
-Session is returned as an `httpOnly` cookie. All subsequent requests include it automatically.
-
----
-
 ### Agents
 
 ```http
