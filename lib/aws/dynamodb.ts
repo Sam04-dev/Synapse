@@ -3,7 +3,13 @@ import { DynamoDBDocumentClient, PutCommand, QueryCommand, ScanCommand } from "@
 import type { AgentEvent } from "@/lib/types";
 
 const client = DynamoDBDocumentClient.from(
-  new DynamoDBClient({ region: process.env.AWS_REGION || "ap-southeast-2" })
+  new DynamoDBClient({
+    region: process.env.AWS_REGION || "ap-southeast-2",
+    credentials: {
+      accessKeyId: (process.env.AWS_ACCESS_KEY_ID ?? "").trim(),
+      secretAccessKey: (process.env.AWS_SECRET_ACCESS_KEY ?? "").trim(),
+    },
+  })
 );
 
 const TABLE = process.env.DYNAMODB_TABLE_NAME || "SynapseEventLog";
