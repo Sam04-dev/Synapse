@@ -1,11 +1,5 @@
 <div align="center">
 
-```
-  ▲
- ███
-SYNAPSE
-```
-
 # SYNAPSE
 
 **Stateful Memory Infrastructure for Autonomous AI Agents**
