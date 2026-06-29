@@ -375,8 +375,7 @@ For security disclosures, contact: **founders@synapse.engine**
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE) for details.
-
-Copyright 2026 Sam04-dev. Licensed under the Apache License, Version 2.0.
+Licensed under the Apache License, Version 2.0.
 
 ---
 
@@ -386,6 +385,6 @@ Built for the **H0 Hackathon — Open Innovation Track**
 
 *Real databases. Real ACID transactions. Real infrastructure.*
 
-**[Launch App](https://synapse.vercel.app) · [API Docs](/docs) · [Pricing](/pricing)**
+**[Launch App]([https://synapse.vercel.app](https://synapse-xi-two.vercel.app/)) · [API Docs](/docs)**
 
 </div>
