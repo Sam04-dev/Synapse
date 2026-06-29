@@ -11,43 +11,57 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4+-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
 [![License Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-22c55e?style=flat-square)](LICENSE)
 
----
-
-*Every AI agent built today is stateless. They forget user context between sessions, hallucinate without persistent memory, and corrupt shared state when multiple agents write concurrently. Synapse is a B2B SaaS platform that gives autonomous agents a transactional, ACID-compliant memory layer — built on Aurora DSQL for relational state and DynamoDB for immutable event logging. Deployed on Vercel for sub-50ms global latency.*
-
 </div>
 
 ---
 
-## The Problem — The Stateless Agent Crisis
+## What Problem Synapse Solves
 
-The AI agent ecosystem has a fundamental infrastructure gap. Developers can build intelligent agents in hours, but they have no reliable way to give those agents memory that survives beyond a single session.
+AI agents are smart but amnesiac. Every major LLM framework — LangChain, CrewAI, AutoGen — makes it trivial to build an agent that reasons well. None of them solve what happens to that agent's state between sessions, across multiple concurrent instances, or when something goes wrong at 2am and you need to know exactly what it did and why.
 
-### Four Failure Modes Killing Production AI
+Developers building production agent systems run into the same three walls every time:
 
-**Context Window Limits**
-LLMs forget everything beyond their token limit. Critical user preferences, past decisions, and conversation history evaporate between sessions. Agents treat every interaction as if it's the first — producing inconsistent, often contradictory outputs for returning users.
+**1. Agents forget everything.**
+Context windows expire. Sessions end. The next request starts from zero. A customer support agent that learned a user prefers refund-over-replacement will forget that preference the moment the session closes. Every interaction becomes a first interaction.
 
-**Race Conditions Under Concurrency**
-When two agents — for example, `CustomerSupport-Alpha` and `Billing-Dispute-Bot` — write to shared state simultaneously, traditional vector databases offer no transactional guarantees. There are no locks, no isolation levels, no rollback mechanisms. State corruption is not a theoretical risk — it is an operational inevitability at scale.
+**2. Concurrent agents corrupt shared state.**
+When two agents — say, a billing bot and a support bot — write to the same customer record within the same 200ms window, traditional vector stores and key-value caches offer no transactional guarantees. No locks, no isolation, no rollback. State corruption is not a theoretical risk at scale — it is a guarantee.
 
-**No Audit Trail**
-Agent actions disappear into black boxes. When something goes wrong at 2am, teams cannot replay what happened, cannot determine which agent wrote what, and cannot satisfy enterprise compliance requirements. Debugging a multi-agent system without an immutable event log is forensic archaeology.
+**3. There is no audit trail.**
+When an agent makes a bad decision — approves a fraudulent claim, sends the wrong message, updates the wrong record — there is nothing to replay. No timestamped log of what it wrote, when, and why. Debugging a multi-agent system without an immutable event log is forensic archaeology in the dark.
 
-**Integration Friction**
-Existing "memory" solutions demand complex orchestration frameworks — LangChain memory chains, custom Redis TTL layers, homegrown Postgres schemas. Developers want a database endpoint and an API key, not another framework to learn and maintain.
-
-### A Real-World Incident
-
-> *FinFlow, a Series-A fintech startup, deployed 12 autonomous agents for customer onboarding automation in Q1 2024. After 3 weeks in production, 34% of agent interactions contained hallucinated "memories" of user preferences that never existed. Two agents had written conflicting state to the same customer record within the same 200ms window. With no event log, there was no way to audit which agent wrote what data or when. The cost: $240K in customer remediation credits and a complete shutdown of the agent fleet. The root cause: no transactional memory layer.*
+Synapse is a purpose-built memory API that solves all three. It gives autonomous agents a transactional, ACID-compliant memory layer backed by Aurora DSQL for relational state and DynamoDB for immutable event logging — accessible over a single REST API.
 
 ---
 
-## The Solution — Synapse Architecture
+## Who It's For
 
-Synapse solves this with a purpose-built dual-database architecture that separates concerns cleanly: relational ACID state goes to Aurora DSQL, and immutable event streams go to DynamoDB.
+Synapse is built for the engineers and teams who have already shipped an AI agent and discovered that "it works in a demo" is not the same as "it works in production."
 
-### Dual-Database Design
+| Who | The specific pain | What Synapse gives them |
+|---|---|---|
+| **AI backend engineers** | Agents built on LangChain / CrewAI lose context between sessions; custom Redis/Postgres memory layers take weeks to build correctly | A drop-in REST API — write a memory node with one `POST`, retrieve the full graph with one `GET`, no framework coupling |
+| **Startups shipping agent products** | Racing to production with no time to design a memory architecture; concurrent agents hitting the same user records | Managed infrastructure with SERIALIZABLE isolation already built in — no distributed systems PhD required |
+| **Enterprise AI teams** | Regulatory and compliance requirements demand a full audit trail of every AI decision | An immutable DynamoDB event log — every agent action timestamped, persisted forever, replayable on demand |
+| **CTOs evaluating agent infrastructure** | Evaluating whether multi-agent systems can meet enterprise SLAs | A live ACID stress test they can run themselves: 50 concurrent writes, observable pass/fail, real database |
+
+---
+
+## Why I Chose This Problem
+
+I chose this problem because the gap between "AI can do this" and "AI does this reliably in production" is where most real projects fail — and it's almost never the model's fault.
+
+In 2024, the tools for building agents improved dramatically. The tools for running them in production did not. Developers can prototype a multi-agent workflow in an afternoon. Shipping that same workflow to production — with persistent memory, concurrent write safety, and a full audit trail — takes weeks of infrastructure work that has nothing to do with AI.
+
+That asymmetry felt like the right problem to build on. Not because it is flashy, but because it is the unsexy bottleneck that determines whether an AI product survives contact with real users. Every team building agents is going to hit it. The ones who hit it with infrastructure already in place will ship. The others will rebuild the same memory layer from scratch, make the same mistakes, and wonder why their agents behave inconsistently in production.
+
+Synapse is the infrastructure layer I wish had existed the first time I debugged a multi-agent state corruption issue. The problem is real, the customers are already building, and the right solution requires genuine database engineering — not just wrapping an LLM.
+
+---
+
+## The Solution — Dual-Database Architecture
+
+Synapse separates concerns cleanly: relational ACID state goes to Aurora DSQL, immutable event streams go to DynamoDB.
 
 **Aurora DSQL — Relational State**
 Distributed SQL with `SERIALIZABLE` isolation. Handles concurrent agent writes to shared state with zero conflicts. Schema-enforced relational integrity across agents, memories, and relationships. Every write is atomic. Every read is consistent.
@@ -101,18 +115,6 @@ Synapse ships with a live stress-test suite accessible from the Metrics dashboar
 - **Zero data loss** under concurrent load — every write either commits fully or rolls back, no partial states
 
 This is not a benchmark claim. It is a live, observable demonstration with real database connections.
-
----
-
-## Target Audience
-
-| Role | Pain Point | How Synapse Solves It |
-|---|---|---|
-| **AI Backend Engineer** | Building LangChain / CrewAI agents that forget context between sessions | Drop-in REST API — write a memory node with one `POST`, retrieve the full graph with one `GET` |
-| **AI Startup CTO** | Agents corrupting shared state under concurrent load; no transactional guarantees from vector DB | Aurora DSQL with `SERIALIZABLE` isolation eliminates race conditions at the database layer |
-| **Enterprise Architect** | Regulatory requirement to audit all AI agent decisions and actions | Immutable DynamoDB event log — every action timestamped, persisted forever, replayable |
-| **Full-Stack Developer** | Spending weeks building custom Redis/Postgres memory layers for every new agent project | Managed API — provision a namespace, get an API key, start writing in minutes |
-| **Compliance Officer** | Black-box AI decisions failing audit requirements | Per-agent event streams with full forensic replay capability |
 
 ---
 
@@ -306,27 +308,27 @@ POST /api/stress-test
 
 ---
 
+## Why Aurora DSQL Over Alternatives
+
+| Solution | ACID Transactions | Concurrent Agent Writes | Relational Integrity | Scalability |
+|---|---|---|---|---|
+| **Aurora DSQL** (Synapse) | ✅ SERIALIZABLE | ✅ Zero conflicts | ✅ FK constraints | ✅ Distributed |
+| Pinecone / Weaviate | ❌ None | ❌ No isolation | ❌ No schema | ✅ |
+| Redis | ❌ Optimistic only | ⚠️ WATCH/MULTI | ❌ No relational | ⚠️ |
+| Supabase (Postgres) | ✅ | ⚠️ Connection limits | ✅ | ⚠️ Vertical |
+| Firebase Firestore | ⚠️ Single-doc only | ⚠️ | ❌ | ✅ |
+| SQLite (local) | ✅ | ❌ Write-serialized | ✅ | ❌ |
+
+Aurora DSQL is the only solution that delivers full SQL semantics, `SERIALIZABLE` isolation, and horizontal distribution simultaneously — the exact combination required for multi-agent concurrent writes at scale.
+
+---
+
 ## Security
 
 - **Sessions** — Signed with HMAC-SHA256, `httpOnly` cookies, 7-day TTL, timing-safe verification
 - **API Keys** — SHA-256 hashed before storage; raw key shown once at creation, never stored
 - **Database** — All connections use TLS; credentials live only in environment variables
 - **No client-side secrets** — All AWS and database calls run server-side only; the browser never sees credentials
-
----
-
-## Why Aurora DSQL Over Alternatives
-
-| Solution | ACID Transactions | Concurrent Agent Writes | Relational Integrity | Scalability |
-|---|---|---|---|---|
-| **Aurora DSQL** (Synapse) | ✅ SERIALIZABLE | ✅ Zero conflicts | ✅ FK constraints | ✅ Distributed |
-| Pinecone / Weaviate |  None |  No isolation |  No schema | ✅ |
-| Redis |  Optimistic only | ⚠️ WATCH/MULTI |  No relational | ⚠️ |
-| Supabase (Postgres) | ✅ | ⚠️ Connection limits | ✅ | ⚠️ Vertical |
-| Firebase Firestore | ⚠️ Single-doc only | ⚠️ | ❌ | ✅ |
-| SQLite (local) | ✅ |  Write-serialized | ✅ | ❌ |
-
-Aurora DSQL is the only solution that delivers full SQL semantics, `SERIALIZABLE` isolation, and horizontal distribution simultaneously — the exact combination required for multi-agent concurrent writes at scale.
 
 ---
 
@@ -375,7 +377,8 @@ For security disclosures, contact: **founders@synapse.engine**
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE) for details.
-Licensed under the Apache License, Version 2.0.
+
+Copyright 2026 Sam04-dev. Licensed under the Apache License, Version 2.0.
 
 ---
 
@@ -385,6 +388,6 @@ Built for the **H0 Hackathon — Open Innovation Track**
 
 *Real databases. Real ACID transactions. Real infrastructure.*
 
-**[Launch App]([https://synapse.vercel.app](https://synapse-xi-two.vercel.app/)) · [API Docs](/docs)**
+**[Launch App](https://synapse-xi-two.vercel.app) · [API Docs](/docs) · [Pricing](/pricing)**
 
 </div>
