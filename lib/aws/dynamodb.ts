@@ -67,9 +67,10 @@ export async function queryEvents(
 
 export async function countRecentEvents(
   windowSecs = 10
-): Promise<{ count: number } | { error: string; code: number }> {
+): Promise<{ count: number; buckets: Record<number, number> } | { error: string; code: number }> {
   try {
     const cutoff = new Date(Date.now() - windowSecs * 1000).toISOString();
+    const buckets: Record<number, number> = {};
     let count = 0;
     let lastKey: Record<string, unknown> | undefined;
     do {
@@ -79,14 +80,21 @@ export async function countRecentEvents(
           FilterExpression: "#ts > :cutoff",
           ExpressionAttributeNames: { "#ts": "timestamp" },
           ExpressionAttributeValues: { ":cutoff": cutoff },
-          Select: "COUNT",
+          ProjectionExpression: "#ts",
           ...(lastKey && { ExclusiveStartKey: lastKey }),
         })
       );
-      count += result.Count ?? 0;
+      for (const item of result.Items ?? []) {
+        const ts = item.timestamp as string | undefined;
+        if (ts) {
+          const sec = Math.floor(new Date(ts).getTime() / 1000);
+          buckets[sec] = (buckets[sec] ?? 0) + 1;
+          count++;
+        }
+      }
       lastKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
     } while (lastKey);
-    return { count };
+    return { count, buckets };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "DynamoDB scan failed";
     return { error: message, code: 500 };

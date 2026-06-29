@@ -32,7 +32,7 @@ const SCHEMA_STATEMENTS = [
 
   `CREATE TABLE IF NOT EXISTS events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    agent_id VARCHAR(36) NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     action VARCHAR(100) NOT NULL,
     payload JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

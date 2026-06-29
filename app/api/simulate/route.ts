@@ -106,15 +106,17 @@ export async function POST() {
     // 4. Write 8-10 events to DynamoDB + DSQL events table
     const eventCount = randomInt(8, 10);
     let eventsWritten = 0;
+    let dsqlEventErrors = 0;
     for (let i = 0; i < eventCount; i++) {
       const action = EVENT_ACTIONS[randomInt(0, EVENT_ACTIONS.length - 1)];
       const payload = randomPayload(action);
       const ts = new Date().toISOString();
 
-      await executeSql(
-        "INSERT INTO events (agent_id, action, payload) VALUES ($1::uuid, $2, $3::jsonb)",
+      const dsqlResult = await executeSql(
+        "INSERT INTO events (agent_id, action, payload) VALUES ($1, $2, $3::jsonb)",
         [agentId, action, JSON.stringify(payload)]
       );
+      if ("error" in dsqlResult) dsqlEventErrors++;
 
       const dynResult = await logEvent({
         PK: `AGENT#${agentId}`,
@@ -131,6 +133,7 @@ export async function POST() {
       memoriesCreated: memoryIds.length,
       relationshipsCreated: relsCreated,
       eventsWritten,
+      dsqlEventErrors,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Simulation failed";

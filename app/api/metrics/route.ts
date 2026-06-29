@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { executeSql } from "@/lib/aws/dsql";
 import { countRecentEvents } from "@/lib/aws/dynamodb";
 
@@ -29,7 +31,6 @@ export async function GET() {
     const memories = !("error" in memCount) ? Number(memCount.records[0]?.total ?? 0) : 0;
     const agents = !("error" in agentCount) ? Number(agentCount.records[0]?.total ?? 0) : 0;
     const events = !("error" in eventCount) ? Number(eventCount.records[0]?.total ?? 0) : 0;
-    const dynamoCount = !("error" in dynamoRecent) ? dynamoRecent.count : 0;
 
     const growth = !("error" in recentMemories)
       ? recentMemories.records.map((r) => {
@@ -42,18 +43,29 @@ export async function GET() {
     const avgLatencyMs = rawLatency > 0 && rawLatency < 500 ? rawLatency : 42 + Math.floor(Math.random() * 18);
 
     const throughputBars: number[] = Array(10).fill(0);
-    if (!("error" in throughput)) {
-      const nowSec = Math.floor(Date.now() / 1000);
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    const dsqlRecentCount = !("error" in throughput)
+      ? throughput.records.reduce((sum, r) => sum + Number(r.cnt), 0)
+      : 0;
+
+    if (!("error" in throughput) && dsqlRecentCount > 0) {
+      // Primary: per-second buckets from DSQL events table
       for (const r of throughput.records) {
         const sec = Number(r.sec);
         const idx = 9 - (nowSec - sec);
         if (idx >= 0 && idx < 10) throughputBars[idx] = Number(r.cnt);
       }
+    } else if (!("error" in dynamoRecent) && dynamoRecent.count > 0) {
+      // Fallback: per-second buckets derived from DynamoDB timestamps
+      for (const [secStr, cnt] of Object.entries(dynamoRecent.buckets)) {
+        const sec = Number(secStr);
+        const idx = 9 - (nowSec - sec);
+        if (idx >= 0 && idx < 10) throughputBars[idx] = cnt;
+      }
     }
 
-    const dsqlRecentCount = !("error" in throughput)
-      ? throughput.records.reduce((sum, r) => sum + Number(r.cnt), 0)
-      : 0;
+    const dynamoCount = !("error" in dynamoRecent) ? dynamoRecent.count : 0;
     const bestRecentCount = Math.max(dsqlRecentCount, dynamoCount);
     const rawEventsPerSec = bestRecentCount > 0 ? +(bestRecentCount / 10).toFixed(1) : 0;
 
