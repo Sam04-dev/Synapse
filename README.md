@@ -320,11 +320,11 @@ POST /api/stress-test
 | Solution | ACID Transactions | Concurrent Agent Writes | Relational Integrity | Scalability |
 |---|---|---|---|---|
 | **Aurora DSQL** (Synapse) | ✅ SERIALIZABLE | ✅ Zero conflicts | ✅ FK constraints | ✅ Distributed |
-| Pinecone / Weaviate | ❌ None | ❌ No isolation | ❌ No schema | ✅ |
-| Redis | ❌ Optimistic only | ⚠️ WATCH/MULTI | ❌ No relational | ⚠️ |
+| Pinecone / Weaviate |  None |  No isolation |  No schema | ✅ |
+| Redis |  Optimistic only | ⚠️ WATCH/MULTI |  No relational | ⚠️ |
 | Supabase (Postgres) | ✅ | ⚠️ Connection limits | ✅ | ⚠️ Vertical |
 | Firebase Firestore | ⚠️ Single-doc only | ⚠️ | ❌ | ✅ |
-| SQLite (local) | ✅ | ❌ Write-serialized | ✅ | ❌ |
+| SQLite (local) | ✅ |  Write-serialized | ✅ | ❌ |
 
 Aurora DSQL is the only solution that delivers full SQL semantics, `SERIALIZABLE` isolation, and horizontal distribution simultaneously — the exact combination required for multi-agent concurrent writes at scale.
 
